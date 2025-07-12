@@ -12,9 +12,20 @@ st.title("🛍️ Customer Segmentation using K-Means Clustering")
 
 uploaded_file = st.file_uploader("Upload Excel file (Online Retail Dataset)", type=["xlsx"])
 
-if uploaded_file:
+
+   if uploaded_file is not None:
     sheet_name = st.text_input("Enter Sheet Name (default: 0)", value="0")
-    df = pd.read_excel(uploaded_file, sheet_name=int(sheet_name) if sheet_name.isdigit() else sheet_name)
+    try:
+        df = pd.read_excel(uploaded_file, sheet_name=int(sheet_name) if sheet_name.isdigit() else sheet_name)
+        st.subheader("Sample Data")
+        st.dataframe(df.head(10))
+        # Rest of your processing code...
+    except ValueError as e:
+        st.error(f"Error reading Excel file: {e}")
+else:
+    st.warning("Please upload a valid Excel (.xlsx) file to get started.")
+
+    
     st.subheader("Sample Data")
     st.dataframe(df.head(10))
 
