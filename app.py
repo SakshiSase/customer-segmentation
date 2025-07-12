@@ -92,13 +92,13 @@ elif page == "Clustering & Results":
         cluster_labels = kmeans.fit_predict(scaled_data)
         non_outliers_df["Cluster"] = cluster_labels
 
-        st.subheader("🎯 3D Cluster Visualization")
-        fig = plt.figure(figsize=(6, 4))
+t.subheader("🎯 3D Cluster Visualization")
+        fig = plt.figure(figsize=(6, 5))
         ax = fig.add_subplot(111, projection='3d')
         scatter = ax.scatter(non_outliers_df['MonetaryValue'],
                              non_outliers_df['Frequency'],
                              non_outliers_df['Recency'],
-                             c=non_outliers_df['Cluster'], cmap='Set2', s=40, alpha=0.8)
+                             c=non_outliers_df['Cluster'], cmap='Set1')
         ax.set_xlabel("MonetaryValue")
         ax.set_ylabel("Frequency")
         ax.set_zlabel("Recency")
@@ -109,6 +109,11 @@ elif page == "Clustering & Results":
 
         st.subheader("📌 Cluster Averages")
         st.dataframe(non_outliers_df.groupby('Cluster')[["MonetaryValue", "Frequency", "Recency"]].mean())
+
+        st.subheader("💾 Download Clustered Data")
+        csv = non_outliers_df.to_csv(index=False).encode('utf-8')
+        st.download_button("Download as CSV", data=csv, file_name='clustered_customers.csv', mime='text/csv')
+
 
         st.subheader("💾 Download Clustered Data")
         csv = non_outliers_df.to_csv(index=False).encode('utf-8')
