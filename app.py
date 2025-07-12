@@ -15,31 +15,8 @@ page = st.sidebar.radio("Go to", ["Home", "Clustering & Results", "About"])
 
 st.title("🛍️ Customer Segmentation using K-Means Clustering")
 
-# --- File Uploader at Top-Level for Reuse ---
-uploaded_file = st.sidebar.file_uploader("📂 Upload Excel file (Online Retail Dataset)", type=["xlsx"])
-
-# --- Load and Process Uploaded Data ---
+# --- Global Variable ---
 agg_df = None
-if uploaded_file is not None:
-    try:
-        df = pd.read_excel(uploaded_file, sheet_name=0)
-        df.dropna(subset=["Customer ID"], inplace=True)
-        df = df[df["Quantity"] > 0]
-        df = df[df["Price"] > 0.0]
-        df["SalesLineTotal"] = df["Quantity"] * df["Price"]
-
-        agg_df = df.groupby(by="Customer ID", as_index=False).agg(
-            MonetaryValue=("SalesLineTotal", "sum"),
-            Frequency=("Invoice", "nunique"),
-            LastInvoiceDate=("InvoiceDate", "max")
-        )
-
-        max_invoice_date = agg_df["LastInvoiceDate"].max()
-        agg_df["Recency"] = (max_invoice_date - agg_df["LastInvoiceDate"]).dt.days
-
-        st.session_state['agg_df'] = agg_df
-    except Exception as e:
-        st.error(f"❌ Failed to load Excel sheet: {e}")
 
 # --- Home Page ---
 if page == "Home":
@@ -48,7 +25,7 @@ if page == "Home":
     This Streamlit app performs **customer segmentation** using **K-Means Clustering** based on Recency, Frequency, and Monetary (RFM) values.
 
     **How it works:**
-    - Upload your Online Retail Excel data using the left sidebar
+    - Upload your Online Retail Excel data below
     - Explore the RFM metrics and visualizations
     - Run K-Means clustering
     - Visualize customer groups in 3D and download results
@@ -56,22 +33,45 @@ if page == "Home":
     > ⚠️ Please ensure your Excel file contains `Invoice`, `Quantity`, `Price`, `Customer ID`, and `InvoiceDate` columns.
     """)
 
-    if agg_df is not None:
-        st.subheader("📊 Aggregated RFM Data")
-        st.dataframe(agg_df.head())
+    uploaded_file = st.file_uploader("📂 Upload Excel file (Online Retail Dataset)", type=["xlsx"])
 
-        st.subheader("📈 Distribution Plots")
-        fig, axs = plt.subplots(1, 3, figsize=(15, 4))
-        axs[0].hist(agg_df['MonetaryValue'], bins=10, color='skyblue', edgecolor='black')
-        axs[0].set_title('Monetary Value')
+    if uploaded_file is not None:
+        try:
+            df = pd.read_excel(uploaded_file, sheet_name=0)
+            df.dropna(subset=["Customer ID"], inplace=True)
+            df = df[df["Quantity"] > 0]
+            df = df[df["Price"] > 0.0]
+            df["SalesLineTotal"] = df["Quantity"] * df["Price"]
 
-        axs[1].hist(agg_df['Frequency'], bins=10, color='lightgreen', edgecolor='black')
-        axs[1].set_title('Frequency')
+            agg_df = df.groupby(by="Customer ID", as_index=False).agg(
+                MonetaryValue=("SalesLineTotal", "sum"),
+                Frequency=("Invoice", "nunique"),
+                LastInvoiceDate=("InvoiceDate", "max")
+            )
 
-        axs[2].hist(agg_df['Recency'], bins=10, color='salmon', edgecolor='black')
-        axs[2].set_title('Recency')
+            max_invoice_date = agg_df["LastInvoiceDate"].max()
+            agg_df["Recency"] = (max_invoice_date - agg_df["LastInvoiceDate"]).dt.days
 
-        st.pyplot(fig)
+            st.session_state['agg_df'] = agg_df
+
+            st.subheader("📊 Aggregated RFM Data")
+            st.dataframe(agg_df.head())
+
+            st.subheader("📈 Distribution Plots")
+            fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+            axs[0].hist(agg_df['MonetaryValue'], bins=10, color='skyblue', edgecolor='black')
+            axs[0].set_title('Monetary Value')
+
+            axs[1].hist(agg_df['Frequency'], bins=10, color='lightgreen', edgecolor='black')
+            axs[1].set_title('Frequency')
+
+            axs[2].hist(agg_df['Recency'], bins=10, color='salmon', edgecolor='black')
+            axs[2].set_title('Recency')
+
+            st.pyplot(fig)
+
+        except Exception as e:
+            st.error(f"❌ Failed to load Excel sheet: {e}")
     else:
         st.info("Upload a file to get started.")
 
