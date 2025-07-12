@@ -93,7 +93,7 @@ elif page == "Clustering & Results":
         non_outliers_df["Cluster"] = cluster_labels
 
         st.subheader("🎯 3D Cluster Visualization")
-        fig = plt.figure(figsize=(6, 4))  # Reduced size
+        fig = plt.figure(figsize=(5, 3.5))  # Smaller size
         ax = fig.add_subplot(111, projection='3d')
         scatter = ax.scatter(non_outliers_df['MonetaryValue'],
                              non_outliers_df['Frequency'],
