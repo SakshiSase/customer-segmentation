@@ -3,124 +3,103 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
+from io import BytesIO
 
 st.set_page_config(page_title="Customer Segmentation App", layout="wide")
 
-# --- Sidebar Navigation ---
-st.sidebar.title("📌 Navigation")
-page = st.sidebar.radio("Go to", ["Upload Dataset", "Data Overview", "Clustering", "Visualization"])
+# Navigation menu
+menu = st.sidebar.selectbox("Navigation", ["🏠 Home", "📊 Data Overview", "🧠 Clustering", "📁 Results"])
 
-st.title("🛍️ Customer Segmentation using K-Means Clustering")
+# Global variables
+if "df" not in st.session_state:
+    st.session_state.df = None
+if "clustered_data" not in st.session_state:
+    st.session_state.clustered_data = None
 
-# --- Global Variable ---
-agg_df = None
+# Home Page
+if menu == "🏠 Home":
+    st.title("🧩 Customer Segmentation ML App")
+    st.markdown("""
+    Welcome to the Customer Segmentation App using Machine Learning (KMeans Clustering).
+    
+    - Upload your customer data as a `.csv` file.
+    - Select features for clustering.
+    - View visualizations and download the result.
+    """)
+    uploaded_file = st.file_uploader("Upload your dataset", type=["csv"])
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+        st.session_state.df = df
+        st.success("✅ Dataset uploaded successfully!")
 
-# --- Upload Dataset ---
-if page == "Upload Dataset":
-    st.header("Upload Customer Dataset")
-    uploaded_file = st.file_uploader("📂 Upload Excel file (Online Retail Dataset)", type=["xlsx"])
-
-    if uploaded_file is not None:
-        try:
-            df = pd.read_excel(uploaded_file, sheet_name=0)
-            df.dropna(subset=["Customer ID"], inplace=True)
-            df = df[df["Quantity"] > 0]
-            df = df[df["Price"] > 0.0]
-            df["SalesLineTotal"] = df["Quantity"] * df["Price"]
-
-            agg_df = df.groupby(by="Customer ID", as_index=False).agg(
-                MonetaryValue=("SalesLineTotal", "sum"),
-                Frequency=("Invoice", "nunique"),
-                LastInvoiceDate=("InvoiceDate", "max")
-            )
-
-            max_invoice_date = agg_df["LastInvoiceDate"].max()
-            agg_df["Recency"] = (max_invoice_date - agg_df["LastInvoiceDate"]).dt.days
-
-            st.session_state['agg_df'] = agg_df
-            st.success("✅ File uploaded and processed successfully.")
-
-        except Exception as e:
-            st.error(f"❌ Failed to load Excel sheet: {e}")
+# Data Overview
+elif menu == "📊 Data Overview":
+    st.title("📊 Dataset Overview")
+    if st.session_state.df is not None:
+        df = st.session_state.df
+        st.write("### First 5 Rows of the Dataset")
+        st.write(df.head())
+        st.write("### Dataset Info")
+        st.write(df.describe())
+        
+        if st.checkbox("Show Heatmap"):
+            plt.figure(figsize=(10, 6))
+            sns.heatmap(df.corr(), annot=True, cmap="coolwarm")
+            st.pyplot(plt.gcf())
+        
+        if st.checkbox("Show Pairplot (slow for large datasets)"):
+            st.info("Plotting pairplot... please wait.")
+            fig = sns.pairplot(df)
+            st.pyplot(fig)
     else:
-        st.info("Upload a file to get started.")
+        st.warning("Please upload the dataset from the Home page.")
 
-# --- Data Overview ---
-elif page == "Data Overview":
-    if 'agg_df' not in st.session_state:
-        st.warning("⚠️ Please upload and process the data first from Upload Dataset page.")
+# Clustering
+elif menu == "🧠 Clustering":
+    st.title("🧠 KMeans Clustering")
+    if st.session_state.df is not None:
+        df = st.session_state.df
+
+        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        selected_features = st.multiselect("Select features for clustering", numeric_cols, default=numeric_cols[:2])
+
+        if selected_features:
+            k = st.slider("Choose number of clusters", 2, 10, 3)
+            X = df[selected_features]
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
+
+            model = KMeans(n_clusters=k, random_state=42)
+            df['Cluster'] = model.fit_predict(X_scaled)
+            st.session_state.clustered_data = df
+
+            st.success(f"✅ Clustering complete with {k} clusters!")
+            st.write(df.head())
+
+            # Visualization
+            if len(selected_features) >= 2:
+                fig, ax = plt.subplots()
+                sns.scatterplot(x=df[selected_features[0]], y=df[selected_features[1]], hue=df['Cluster'], palette='Set2', ax=ax)
+                ax.set_title("Customer Segmentation Scatterplot")
+                st.pyplot(fig)
+        else:
+            st.info("Please select at least two features.")
     else:
-        agg_df = st.session_state['agg_df']
-        st.header("📊 Aggregated RFM Data")
-        st.dataframe(agg_df.head())
+        st.warning("Upload dataset first on Home page.")
 
-        st.subheader("📈 Distribution Plots")
-        fig, axs = plt.subplots(1, 3, figsize=(15, 4))
-        axs[0].hist(agg_df['MonetaryValue'], bins=10, color='skyblue', edgecolor='black')
-        axs[0].set_title('Monetary Value')
+# Results
+elif menu == "📁 Results":
+    st.title("📁 Final Results & Download")
+    if st.session_state.clustered_data is not None:
+        st.write("### Clustered Dataset Preview")
+        st.write(st.session_state.clustered_data.head())
 
-        axs[1].hist(agg_df['Frequency'], bins=10, color='lightgreen', edgecolor='black')
-        axs[1].set_title('Frequency')
+        csv = st.session_state.clustered_data.to_csv(index=False)
+        b64 = BytesIO()
+        b64.write(csv.encode())
+        b64.seek(0)
 
-        axs[2].hist(agg_df['Recency'], bins=10, color='salmon', edgecolor='black')
-        axs[2].set_title('Recency')
-
-        st.pyplot(fig)
-
-# --- Clustering Page ---
-elif page == "Clustering":
-    if 'agg_df' not in st.session_state:
-        st.warning("⚠️ Please upload and process the data first from Upload Dataset page.")
+        st.download_button("📥 Download Clustered CSV", b64, "clustered_result.csv", "text/csv")
     else:
-        agg_df = st.session_state['agg_df']
-        non_outliers_df = agg_df.copy()
-        scaler = StandardScaler()
-        scaled_data = scaler.fit_transform(non_outliers_df[["MonetaryValue", "Frequency", "Recency"]])
-
-        st.subheader("📌 Elbow Method Graph")
-        wcss = []
-        for i in range(1, 11):
-            kmeans = KMeans(n_clusters=i, init='k-means++', random_state=42)
-            kmeans.fit(scaled_data)
-            wcss.append(kmeans.inertia_)
-
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.plot(range(1, 11), wcss, marker='o', linestyle='--')
-        ax.set_title("The Elbow Point Graph")
-        ax.set_xlabel("Number of clusters")
-        ax.set_ylabel("WCSS")
-        st.pyplot(fig)
-
-# --- Visualization Page ---
-elif page == "Visualization":
-    if 'agg_df' not in st.session_state:
-        st.warning("⚠️ Please upload and process the data first from Upload Dataset page.")
-    else:
-        agg_df = st.session_state['agg_df']
-        non_outliers_df = agg_df.copy()
-        scaler = StandardScaler()
-        scaled_data = scaler.fit_transform(non_outliers_df[["MonetaryValue", "Frequency", "Recency"]])
-
-        k = st.slider("Select number of clusters for visualization", min_value=2, max_value=10, value=4)
-        kmeans = KMeans(n_clusters=k, random_state=42)
-        cluster_labels = kmeans.fit_predict(scaled_data)
-        non_outliers_df["Cluster"] = cluster_labels
-
-        # Inverse transform centroids for interpretation
-        centroids = scaler.inverse_transform(kmeans.cluster_centers_)
-        centroids_df = pd.DataFrame(centroids, columns=["MonetaryValue", "Frequency", "Recency"])
-
-        st.subheader("📋 Cluster Counts")
-        st.bar_chart(non_outliers_df['Cluster'].value_counts())
-
-        st.subheader("📌 Cluster Averages")
-        st.dataframe(non_outliers_df.groupby('Cluster')[["MonetaryValue", "Frequency", "Recency"]].mean())
-
-        st.subheader("📍 Cluster Centroids")
-        st.dataframe(centroids_df)
-
-        st.subheader("💾 Download Clustered Data")
-        csv = non_outliers_df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download as CSV", data=csv, file_name='clustered_customers.csv', mime='text/csv')
+        st.warning("No clustered data available. Perform clustering first.")
